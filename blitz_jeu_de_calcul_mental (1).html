@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BLITZ</title>
+
+<style>
+:root {
+  --yellow: #ffd700;
+  --dark: #111;
+  --white: #fff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: radial-gradient(circle at top, #222, #000);
+  color: var(--white);
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.container {
+  background: var(--dark);
+  width: 380px;
+  padding: 26px;
+  border-radius: 22px;
+  box-shadow: 0 0 40px rgba(255,215,0,.25);
+  text-align: center;
+  position: relative;
+}
+
+.back {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 20px;
+  height: 20px;
+  border-left: 3px solid var(--yellow);
+  border-bottom: 3px solid var(--yellow);
+  transform: rotate(45deg);
+  cursor: pointer;
+}
+
+.hidden { display: none; }
+
+h1 { color: var(--yellow); font-size: 24px; margin-bottom: 20px; }
+
+.btn {
+  width: 100%;
+  padding: 14px;
+  margin: 10px 0;
+  border-radius: 26px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ffeb3b, #ffb300);
+  color: #000;
+  font-size: 16px;
+}
+
+.score-bar { text-align: center; margin-bottom: 10px; }
+.lives { font-size: 26px; margin: 8px 0; }
+.question { font-size: 34px; margin: 12px 0; }
+
+.answer-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+input {
+  width: 160px;
+  padding: 10px;
+  font-size: 20px;
+  border-radius: 10px;
+  border: none;
+  text-align: center;
+}
+
+.validate {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: var(--yellow);
+  color: black;
+  font-weight: bold;
+}
+
+.timer {
+  height: 8px;
+  background: #333;
+  border-radius: 6px;
+  margin-top: 14px;
+}
+
+.bar {
+  height: 100%;
+  background: var(--yellow);
+  width: 100%;
+}
+
+.solution { margin-top: 10px; color: var(--yellow); }
+.end { margin-top: 15px; }
+</style>
+</head>
+
+<body>
+<div class="container">
+<div id="backBtn" class="back hidden" onclick="goMenu()"></div>
+
+<div id="menu">
+<h1>BLITZ</h1>
+<button class="btn" onclick="selectMode('classic')">Mode Classique</button>
+<button class="btn" onclick="selectMode('time')">Contre-la-montre</button>
+</div>
+
+<div id="levels" class="hidden">
+<h1>Niveau</h1>
+<button class="btn" onclick="startGame(1)">Débutant</button>
+<button class="btn" onclick="startGame(2)">Intermédiaire</button>
+<button class="btn" onclick="startGame(3)">Avancé</button>
+<button class="btn" onclick="startGame(4)">Expert</button>
+</div>
+
+<div id="game" class="hidden">
+<div class="score-bar">
+Score : <span id="score">0</span> | Record : <span id="best">0</span>
+</div>
+<div id="lives" class="lives">⚡⚡</div>
+<div id="question" class="question"></div>
+
+<div class="answer-row">
+<input id="answer" />
+<button class="validate" onclick="submitAnswer()">Valider</button>
+</div>
+
+<div class="timer"><div id="bar" class="bar"></div></div>
+<div id="solution" class="solution"></div>
+
+<div id="end" class="end hidden">
+<button onclick="replay()">Rejouer</button>
+<button onclick="goMenu()">Menu</button>
+</div>
+</div>
+
+</div>
+
+<script>
+let mode, level, score, best, time, timer, lives, current;
+let errorStreak = 0, successStreak = 0;
+
+function selectMode(m){ 
+  mode=m; 
+  menu.classList.add('hidden'); 
+  levels.classList.remove('hidden');
+  backBtn.classList.remove('hidden');
+}
+
+function startGame(l){
+level=l; score=0; lives=2;
+errorStreak=0; successStreak=0;
+menu.classList.add('hidden'); levels.classList.add('hidden'); game.classList.remove('hidden');
+
+backBtn.classList.remove('hidden');
+
+best = localStorage.getItem(`b_${mode}_${level}`) || 0;
+bestSpan.textContent = best;
+scoreSpan.textContent = 0;
+
+ time = mode==='classic'?30:120;
+ nextQuestion(); startTimer();
+}
+
+function startTimer(){
+clearInterval(timer);
+const base = mode==='classic'?30:120;
+timer=setInterval(()=>{
+ time-=0.1;
+ bar.style.width=(time/base*100)+'%';
+ if(time<=0) endGame();
+},100);
+}
+
+function nextQuestion(){
+solution.textContent=''; lives=2; updateLives();
+let r=Math.random(), q, ans;
+
+if(level===4){
+ if(r<0.40){let a=rnd(11,99),b=rnd(11,99);q=`${a} × ${b}`;ans=a*b;}
+ else if(r<0.65){let n=rnd(11,99);q=`${n}²`;ans=n*n;}
+ else if(r<0.85){let res=rnd(7,99),b=rnd(2,15),a=res*b; if(a<90)a+=b*Math.ceil((90-a)/b);q=`${a} ÷ ${b}`;ans=res;}
+ else if(r<0.95){let a=rnd(101,999),b=rnd(101,999);if(a<b)[a,b]=[b,a];if(Math.random()<.5){q=`${a} + ${b}`;ans=a+b;}else{q=`${a} - ${b}`;ans=a-b;}}
+ else{let c=rnd(11,99);q=`∛${c**3}`;ans=c;}
+}
+else if(level===3){
+ if(r<0.35){let a=rnd(12,60),b=rnd(7,25);q=`${a} × ${b}`;ans=a*b;}
+ else if(r<0.55){let n=rnd(11,99);q=`${n}²`;ans=n*n;}
+ else if(r<0.75){let res=rnd(6,40),b=rnd(2,12),a=res*b;if(a<70)a+=b*Math.ceil((70-a)/b);q=`${a} ÷ ${b}`;ans=res;}
+ else{let a=rnd(101,999),b=rnd(11,99);if(a<b)[a,b]=[b,a];if(Math.random()<.5){q=`${a} + ${b}`;ans=a+b;}else{q=`${a} - ${b}`;ans=a-b;}}
+}
+else{
+ let a=rnd(10,50),b=rnd(2,20);q=`${a} + ${b}`;ans=a+b;
+}
+
+current=ans; question.textContent=q; answer.value='';
+}
+
+function submitAnswer(){
+let val=Number(answer.value.replace(',','.'));
+if(val===current){
+score++; scoreSpan.textContent=score;
+if(mode==='classic'){time=30;} else{time+=7; if(++successStreak===3) time+=5;}
+errorStreak=0; nextQuestion();
+}else{
+successStreak=0; errorStreak++;
+if(mode==='classic'){
+lives--; updateLives(); 
+if(lives===0){solution.textContent='Réponse : '+current; endGame();}
+}
+else{time-=12; if(errorStreak===2) time-=17;}
+}
+}
+
+function updateLives(){
+let display='';
+for(let i=0;i<2;i++){
+ if(i<lives) display+='⚡'; else display+='❌';
+}
+livesEl.textContent=display;
+}
+
+function endGame(){clearInterval(timer); end.classList.remove('hidden');
+let key=`b_${mode}_${level}`;
+if(score>best){localStorage.setItem(key,score); bestSpan.textContent=score;}
+}
+
+function replay(){startGame(level);} 
+function goMenu(){
+clearInterval(timer); 
+game.classList.add('hidden'); 
+levels.classList.add('hidden'); 
+menu.classList.remove('hidden');
+backBtn.classList.add('hidden');
+}
+
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+
+// DOM
+const menu=document.getElementById('menu');
+const levels=document.getElementById('levels');
+const game=document.getElementById('game');
+const question=document.getElementById('question');
+const answer=document.getElementById('answer');
+const solution=document.getElementById('solution');
+const livesEl=document.getElementById('lives');
+const scoreSpan=document.getElementById('score');
+const bestSpan=document.getElementById('best');
+const bar=document.getElementById('bar');
+const end=document.getElementById('end');
+const backBtn=document.getElementById('backBtn');
+
+// ENTER key
+answer.addEventListener('keydown',e=>{if(e.key==='Enter') submitAnswer();});
+</script>
+</body>
+</html>
